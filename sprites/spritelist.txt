@@ -1,0 +1,2 @@
+/tiles/azure_bricks.png
+/character_walksheet.png

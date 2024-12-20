@@ -1,1 +1,75 @@
+<!doctype html>
 
+<html style="background-color:darkslategray" lang="en">
+    <head>
+        <meta charset="utf-8">
+    
+        <title>Charm's Place</title>
+    
+        <style>
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            #canvas {
+                /*
+                    * WebGL trick: pick an offensive canvas background color to test
+                    *  opacity/clearing bugs
+                    */
+                background-color: #550055;
+
+                /* Help to illustrate the rasterizer's job: when artificially lowering resolution, show pixelated image */
+                image-rendering: pixelated;
+            }
+
+                  /** CSS to make a nice little error box output for debugging (nice if you can't use devtools, e.g. mobile)  */
+            #error-box {
+                color: #fd8080;
+                font-weight: 500;
+                font-size: 18pt;
+                border: 1px solid white;
+                padding: 25px;
+                margin-top: 20px;
+            }
+
+            #log-box {
+                color: #80a8fd;
+                font-weight: 500;
+                font-size: 18pt;
+                border: 1px solid white;
+                padding: 25px;
+                margin-top: 20px;
+            }
+
+            .error-box-title {
+                color: #eee;
+                border-bottom: 1px solid gray;
+            }
+
+            .log-box-title {
+                color: #eee;
+                border-bottom: 1px solid gray;
+            }
+
+            img {
+                display: none;
+            }
+        </style>
+    </head>
+    <body id="main-body">
+        <canvas id="canvas" width="384" height="216">
+            HTML5 canvas not supported in your browser! These demos will not work.
+        </canvas>
+        
+        <div id="error-box">
+            <span class="error-box-title">Error log</span>
+        </div>
+
+        <div id="log-box">
+            <span class="log-box-title">Standard Log</span>
+            <div id="logs"></div>
+        </div>
+        <script src="main.js"></script>
+    </body>
+</html> 
