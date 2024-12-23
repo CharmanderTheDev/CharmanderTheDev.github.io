@@ -1,0 +1,7 @@
+{
+    0, 0, 0: azure_bricks;
+    255, 255, 255: grass;
+}
+{
+    16, 16: fountain;
+}

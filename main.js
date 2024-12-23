@@ -1,12 +1,29 @@
-const prod = true;
+const prod = false;
 
 const mainBody = document.getElementById('main-body');
 const c = document.getElementById('canvas');
 const ctx = c.getContext("2d");
 
+//hidden canvas context
+const hctx = document.createElement('canvas').getContext('2d');
+
 var spriteBank = new Map();
 
 var tick = 0;
+
+const current_chunk_tiles = [
+    [false, false, false],
+    [false, false, false],
+    [false, false, false]
+];
+
+const current_chunk_entities = [
+    [false, false, false],
+    [false, false, false],
+    [false, false, false]
+];
+
+const chunk_size = 4096;
 
 var inputState = {
     up:false,
@@ -23,8 +40,13 @@ var inputState = {
 var playerState = {
     direction: 0,
     walking_frame: 0,
-    position: {x:0,y:0}
-}
+    
+    position: {x:-1280,y:-2500},
+
+    facing_angle: 0,
+
+    current_chunk: {x:0,y:0},
+};const PLAYERSPEED = 32;
 
 document.addEventListener('keydown', (event) => {
     if(event.key == 'w'){inputState.up=true;}
@@ -36,6 +58,8 @@ document.addEventListener('keydown', (event) => {
     if(event.key == 'q'){inputState.turnleft=true;}
 
     if(event.key == ' '){inputState.space=true;}
+
+    if(event.key == 'z'){ctx.resetTransform();playerState.facing_angle=0;}
 })
 
 document.addEventListener('keyup', (event) => {
@@ -57,7 +81,6 @@ function ELog(errorText) {
     errorBoxDiv.appendChild(errorSpan);
     console.error(errorText);
 }
-
 function Log(text) {
     const logBoxDiv = document.getElementById('logs');
     const logSpan = document.createElement('p');
@@ -70,7 +93,6 @@ function QLog() {
     logSpan.innerText = "Log Successful";
     logBoxDiv.appendChild(logSpan);
 }
-
 function LogC(){
     document.getElementById('logs').textContent = '';
 }
@@ -105,12 +127,24 @@ async function loadImages() {
     });
 }
 
-function updatePlayer() {
+async function updatePlayer() {
     //movement
-    if(inputState.up){playerState.position.y+=1;playerState.direction=2}
-    if(inputState.down){playerState.position.y-=1;playerState.direction=0}
-    if(inputState.left){playerState.position.x+=1;playerState.direction=3}
-    if(inputState.right){playerState.position.x-=1;playerState.direction=1}
+    if(inputState.up){
+        playerState.position.y+=Math.cos(playerState.facing_angle)*PLAYERSPEED;
+        playerState.position.x+=Math.sin(playerState.facing_angle)*PLAYERSPEED;
+        playerState.direction=2}
+    if(inputState.down){
+        playerState.position.y-=Math.cos(playerState.facing_angle)*PLAYERSPEED;
+        playerState.position.x-=Math.sin(playerState.facing_angle)*PLAYERSPEED;
+        playerState.direction=0}
+    if(inputState.left){
+        playerState.position.y-=Math.sin(playerState.facing_angle)*PLAYERSPEED;
+        playerState.position.x+=Math.cos(playerState.facing_angle)*PLAYERSPEED;
+        playerState.direction=3}
+    if(inputState.right){
+        playerState.position.y+=Math.sin(playerState.facing_angle)*PLAYERSPEED;
+        playerState.position.x-=Math.cos(playerState.facing_angle)*PLAYERSPEED;
+        playerState.direction=1}
     
     //walking frames
     if(inputState.left||inputState.right){
@@ -119,22 +153,148 @@ function updatePlayer() {
         if(tick%7===0){playerState.walking_frame=playerState.walking_frame===1?3:1}
     }else{playerState.walking_frame=0;}
 
+    //turning the camera
+    if(inputState.turnleft){
+        ctx.translate(c.width/2, c.height/2);
+        ctx.rotate(.025);
+        playerState.facing_angle+=.025;
+        ctx.translate(-(c.width/2), -(c.height/2));
+    }
+    if(inputState.turnright){
+        ctx.translate(c.width/2, c.height/2);
+        ctx.rotate(-.025);
+        playerState.facing_angle-=.025;
+        ctx.translate(-(c.width/2), -(c.height/2));
+    }
+
     //Drawing the player using the walking spritesheet
-    ctx.drawImage(
+    drawRotatedCroppedImage(
         spriteBank.get("character_walksheet"), 
-        32*playerState.direction, 32*(playerState.walking_frame>1?(playerState.walking_frame===2?0:2):playerState.walking_frame), 
-        32, 32, //
-        (c.width/2)-16, (c.height/2)-16, //position of image
-        32, 32 //width and height of image
+        128*playerState.direction, 128*(playerState.walking_frame>1?(playerState.walking_frame===2?0:2):playerState.walking_frame), 
+        128, 128, //
+        (c.width/2), (c.height/2), //position of image
+        128, 128, //width and height of image
+        -playerState.facing_angle //compensate for angle to maintain uprightness
     );
+
+    //updating the player chunk if it's different, and loading new chunks
+    if(Math.floor(playerState.position.x/chunk_size)!=playerState.current_chunk.x||Math.floor(playerState.position.y/chunk_size)!=playerState.current_chunk.y){
+
+        playerState.current_chunk.x = Math.floor(playerState.position.x/chunk_size);
+        playerState.current_chunk.y = Math.floor(playerState.position.y/chunk_size);
+
+        await loadChunks();
+    }
+}
+
+function drawRotatedImage(image, x, y, angle) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.drawImage(image, -(image.width/2), -(image.height/2));
+    ctx.restore();
+}
+
+function drawRotatedCroppedImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight, angle) {
+    ctx.save();
+    ctx.translate(dx, dy);
+    ctx.rotate(angle);
+    ctx.drawImage(image, sx, sy, sWidth, sHeight, -dWidth/2, -dHeight/2, dWidth, dHeight);
+    ctx.restore();
+}
+
+async function loadChunks() {
+
+    //building in-scope chunk dictionaries
+    for(let x=-1;x<=1;x++){
+        for(let y=-1;y<=1;y++) {
+            await fetch("/chunk_data/keys/"+(playerState.current_chunk.x+x)+"/"+(playerState.current_chunk.y+y)+".txt")
+            .then(response => response.text())
+            .then(async (data) => {
+
+                data = data.replace(/\s/g,'').split('}');
+
+                //builds tilemap for given chunk
+                current_chunk_tiles[y+1][x+1] = data[0][0]=='{'?await(async() => {
+                    //will hold tiles for chunk
+                    var tiles = []
+
+                    //holds key for reading map, loading map
+                    var map = {}
+                    try{var img = getImageData(await loadImage("/chunk_data/maps/"+(playerState.current_chunk.x+x)+"/"+(playerState.current_chunk.y+y)+".png"));}catch{var img=false;}
+
+                    //initializing map key
+                    for(let key of data[0].slice(1).split(';')){
+                        key=key.split(':');map[key[0]]=key[1];
+                    }
+                    
+                    //loading tile list with corresponding images
+                    var cur_pixel = "";var on_pixpart = 0;
+                    for(let i=0;i<img.length;i++){
+                        if(on_pixpart!=3){cur_pixel+=img[i]+',';}
+                        on_pixpart++;
+                        if(on_pixpart==4){
+                            on_pixpart=0;
+                            
+                            if((i-3)%128==0){tiles.push([]);}
+                            tiles[Math.floor(i/128)].push(map[cur_pixel.slice(0,cur_pixel.length-1)])
+
+                            cur_pixel=[];
+                        }
+                    }
+
+                    return(tiles);
+                })()
+                :false;
+                //builds entity list for given chunk
+                current_chunk_entities[y+1][x+1] = data[0][0]=='{'?(() => {
+                    var map = {}
+                    for(let key of data[1].slice(1).split(';')){key=key.split(':');map[key[0]]=key[1];}
+                    return map;
+                })()
+                :false;
+            });
+        }
+    }
+}
+
+function getImageData(img){
+    hctx.drawImage(img, 0, 0);
+    return hctx.getImageData(0, 0, img.width, img.height).data;
+}
+
+function drawChunks() {
+
+    //looping over chunks
+    for(let cx=-1;cx<=1;cx++){for(let cy=-1;cy<=1;cy++){
+
+        //loading tile content
+        tiles = current_chunk_tiles[cx+1][cy+1];
+
+        //drawing tiles in order
+        if(tiles!=false){
+            for(let x=0;x<32;x++){for(let y=0;y<32;y++){
+                ctx.drawImage(
+
+                    spriteBank.get(tiles[y][x]),
+                    
+                    playerState.position.x+(x*128)+(cx*chunk_size), 
+                    playerState.position.y+(y*128)+(cy*chunk_size);
+            }}
+        }
+    }}
 }
 
 async function main() {
+    tick++;
     if(!prod){LogC();}
-    ctx.clearRect(0, 0, c.width, c.height);
+    var max=c.width>=c.height?c.width:c.height;ctx.clearRect(-max, -max, max*2, max*2) //clears rectangle containing all possible rotated contexts.
 
-    ctx.drawImage(spriteBank.get("azure_bricks"), playerState.position.x, playerState.position.y);
-    updatePlayer();
+    drawChunks();
+    await updatePlayer();
+
+    Log(playerState.current_chunk.x+" "+playerState.current_chunk.y);
+    for(let i=0;i<3;i++){str="";for(j=0;j<3;j++){str+=current_chunk_tiles[2-i][2-j]==false?0:1;}Log(str);}
 }
 
 c.style.width = (prod?window.innerWidth:960)+"px"
@@ -142,11 +302,12 @@ c.style.height = (prod?window.innerHeight:540)+"px";
 if(prod){mainBody.removeChild(document.getElementById("error-box"));}
 if(prod){mainBody.removeChild(document.getElementById("log-box"));}
 
+//loadChunks();
+
 loadImages().then(function() {
-setInterval(function() {
+setInterval(async function() {
     try{
-        main();
-        tick++;
+        await main();
     } catch(e) {
         ELog(`Uncaught JavaScript exception: ${e}`);
     }

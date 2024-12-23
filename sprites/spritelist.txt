@@ -1,2 +1,3 @@
 /tiles/azure_bricks.png
+/tiles/grass.png
 /character_walksheet.png
