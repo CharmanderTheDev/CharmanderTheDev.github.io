@@ -46,7 +46,7 @@ var playerState = {
     facing_angle: 0,
 
     current_chunk: {x:0,y:0},
-};const PLAYERSPEED = 32;
+};const PLAYERSPEED = prod?8:32;
 
 document.addEventListener('keydown', (event) => {
     if(event.key == 'w'){inputState.up=true;}
