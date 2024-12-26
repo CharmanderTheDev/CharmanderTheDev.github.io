@@ -41,7 +41,7 @@ var playerState = {
     direction: 0,
     walking_frame: 0,
     
-    position: {x:-1280,y:-2500},
+    position: {x:2048,y:1152},
 
     facing_angle: 0,
 
@@ -180,8 +180,8 @@ async function updatePlayer() {
     //updating the player chunk if it's different, and loading new chunks
     if(Math.floor(playerState.position.x/chunk_size)!=playerState.current_chunk.x||Math.floor(playerState.position.y/chunk_size)!=playerState.current_chunk.y){
 
-        playerState.current_chunk.x = Math.floor(playerState.position.x/chunk_size);
-        playerState.current_chunk.y = Math.floor(playerState.position.y/chunk_size);
+        playerState.current_chunk.x = -1*Math.floor(playerState.position.x/chunk_size);
+        playerState.current_chunk.y = -1*Math.floor(playerState.position.y/chunk_size);
 
         await loadChunks();
     }
@@ -204,10 +204,10 @@ function drawRotatedCroppedImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth,
 }
 
 async function loadChunks() {
-
     //building in-scope chunk dictionaries
-    for(let x=-1;x<=1;x++){
-        for(let y=-1;y<=1;y++) {
+    for(let y=-1;y<=1;y++){
+        for(let x=-1;x<=1;x++) {
+
             await fetch("/chunk_data/keys/"+(playerState.current_chunk.x+x)+"/"+(playerState.current_chunk.y+y)+".txt")
             .then(response => response.text())
             .then(async (data) => {
@@ -215,7 +215,7 @@ async function loadChunks() {
                 data = data.replace(/\s/g,'').split('}');
 
                 //builds tilemap for given chunk
-                current_chunk_tiles[y+1][x+1] = data[0][0]=='{'?await(async() => {
+                current_chunk_tiles[1-y][x+1] = data[0][0]=='{'?await(async() => {
                     //will hold tiles for chunk
                     var tiles = []
 
@@ -235,6 +235,7 @@ async function loadChunks() {
                         on_pixpart++;
                         if(on_pixpart==4){
                             on_pixpart=0;
+
                             
                             if((i-3)%128==0){tiles.push([]);}
                             tiles[Math.floor(i/128)].push(map[cur_pixel.slice(0,cur_pixel.length-1)])
@@ -247,7 +248,7 @@ async function loadChunks() {
                 })()
                 :false;
                 //builds entity list for given chunk
-                current_chunk_entities[y+1][x+1] = data[0][0]=='{'?(() => {
+                current_chunk_entities[1-y][x+1] = data[0][0]=='{'?(() => {
                     var map = {}
                     for(let key of data[1].slice(1).split(';')){key=key.split(':');map[key[0]]=key[1];}
                     return map;
@@ -256,6 +257,7 @@ async function loadChunks() {
             });
         }
     }
+    //for(let i=0;i<3;i++){str="";for(j=0;j<3;j++){str+=current_chunk_tiles[i][j]==false?0:1;}Log(str);}
 }
 
 function getImageData(img){
@@ -266,10 +268,10 @@ function getImageData(img){
 function drawChunks() {
 
     //looping over chunks
-    for(let cx=-1;cx<=1;cx++){for(let cy=-1;cy<=1;cy++){
+    for(let cy=-1;cy<=1;cy++){for(let cx=-1;cx<=1;cx++){
 
         //loading tile content
-        tiles = current_chunk_tiles[cx+1][cy+1];
+        tiles = current_chunk_tiles[1-cy][cx+1];
 
         //drawing tiles in order
         if(tiles!=false){
@@ -278,8 +280,8 @@ function drawChunks() {
 
                     spriteBank.get(tiles[y][x]),
                     
-                    playerState.position.x+(x*128)+(cx*chunk_size), 
-                    playerState.position.y+(y*128)+(cy*chunk_size);
+                    (c.width/2)+playerState.position.x+(x*128)+(cx*chunk_size)+(playerState.current_chunk.x*chunk_size)-chunk_size, 
+                    (c.height/2)+playerState.position.y+(y*128)+(cy*chunk_size)+(playerState.current_chunk.y*chunk_size)-chunk_size);
             }}
         }
     }}
@@ -288,13 +290,12 @@ function drawChunks() {
 async function main() {
     tick++;
     if(!prod){LogC();}
-    var max=c.width>=c.height?c.width:c.height;ctx.clearRect(-max, -max, max*2, max*2) //clears rectangle containing all possible rotated contexts.
+    var max=c.width>=c.height?c.width:c.height;ctx.clearRect(-max*100, -max*100, max*200, max*200) //clears rectangle containing all possible rotated contexts.
 
     drawChunks();
     await updatePlayer();
 
-    Log(playerState.current_chunk.x+" "+playerState.current_chunk.y);
-    for(let i=0;i<3;i++){str="";for(j=0;j<3;j++){str+=current_chunk_tiles[2-i][2-j]==false?0:1;}Log(str);}
+    Log("Player position: "+playerState.position.x+" "+playerState.position.y);
 }
 
 c.style.width = (prod?window.innerWidth:960)+"px"
@@ -302,7 +303,7 @@ c.style.height = (prod?window.innerHeight:540)+"px";
 if(prod){mainBody.removeChild(document.getElementById("error-box"));}
 if(prod){mainBody.removeChild(document.getElementById("log-box"));}
 
-//loadChunks();
+loadChunks();
 
 loadImages().then(function() {
 setInterval(async function() {
