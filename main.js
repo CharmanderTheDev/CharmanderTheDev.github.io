@@ -1,4 +1,4 @@
-const prod = false;
+const prod = true;
 
 const mainBody = document.getElementById('main-body');
 const c = document.getElementById('canvas');
