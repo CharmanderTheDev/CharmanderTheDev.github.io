@@ -17,11 +17,7 @@ const current_chunk_tiles = [
     [false, false, false]
 ];
 
-const current_chunk_entities = [
-    [false, false, false],
-    [false, false, false],
-    [false, false, false]
-];
+const entities = [];
 
 const chunk_size = 4096;
 
@@ -97,6 +93,39 @@ function LogC(){
     document.getElementById('logs').textContent = '';
 }
 
+//checks if distance is too far for rendering/ticking, to save processing power
+function DCHK(entity){
+    return !(Math.abs(playerState.position.x-entity.position.x)>chunk_size*2 && Math.abs(playerState.position.y-entity.position.y)>chunk_size*2)
+}
+
+function tickEntity(entity){
+    if(entity.name == 'fountain'){if(DCHK(entity)){
+        if(entity.frame==4){entity.frame=1;}else{entity.frame++;}
+    }}
+}
+
+function constructEntity(name, info){
+    if(name == 'fountain'){
+        return({
+            name: name,
+            position: {x: info[0], y: info[1]},
+            axis: {x: 0, y: -50},
+            frame: 1
+        })
+    }
+}
+
+async function loadEntities() {
+    await fetch("/chunk_data/entities.txt")
+    .then(response => response.text())
+    .then(async (data) => {
+        for(entry of data.replace(/\s/g,'').split(';')){
+            entities.push(constructEntity(entry.split(':')[0], entry.split(':')[1].split(',')));
+        }
+    });
+}
+
+
 const loadImage = path => {
     return new Promise((resolve, reject) => {
         const img = new Image()
@@ -116,13 +145,32 @@ async function loadImages() {
     .then(response => response.text())
     .then(async (data) => {
         for(const line of data.split("\n")){
-            spriteBank.set(
-                line.slice(
-                    line.lastIndexOf('/') + 1,
-                    line.indexOf('.')
-                ),
-                await loadImage("/sprites"+line)
-            );
+            //loading frames vs loading individuals
+            if(line[0]=="_"){
+                for(let i=1;i<=line[1];i++){
+                    spriteBank.set(
+                        line.slice(
+                            line.lastIndexOf('/') + 1,
+                        ) + i,
+                        await(loadImage(
+                            "/sprites"+
+                            line.substring(2)+
+                            '/'+
+                            line.slice(
+                                line.lastIndexOf('/') + 1,
+                            )+
+                            i+
+                            ".png"))
+                    );
+                }
+            }else{
+                spriteBank.set(
+                    line.slice(
+                        line.lastIndexOf('/') + 1,
+                        line.indexOf('.')
+                    ),
+                    await loadImage("/sprites"+line+".png")
+                );}
         }
     });
 }
@@ -195,6 +243,14 @@ function drawRotatedImage(image, x, y, angle) {
     ctx.restore();
 }
 
+function drawRotatedCompensatedImage(image, x, y, dx, dy, angle) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.drawImage(image, -(image.width/2) + dx, -(image.height/2) + dy);
+    ctx.restore();
+}
+
 function drawRotatedCroppedImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight, angle) {
     ctx.save();
     ctx.translate(dx, dy);
@@ -247,17 +303,9 @@ async function loadChunks() {
                     return(tiles);
                 })()
                 :false;
-                //builds entity list for given chunk
-                current_chunk_entities[1-y][x+1] = data[0][0]=='{'?(() => {
-                    var map = {}
-                    for(let key of data[1].slice(1).split(';')){key=key.split(':');map[key[0]]=key[1];}
-                    return map;
-                })()
-                :false;
             });
         }
     }
-    //for(let i=0;i<3;i++){str="";for(j=0;j<3;j++){str+=current_chunk_tiles[i][j]==false?0:1;}Log(str);}
 }
 
 function getImageData(img){
@@ -280,11 +328,26 @@ function drawChunks() {
 
                     spriteBank.get(tiles[y][x]),
                     
-                    (c.width/2)+playerState.position.x+(x*128)+(cx*chunk_size)+(playerState.current_chunk.x*chunk_size)-chunk_size, 
-                    (c.height/2)+playerState.position.y+(y*128)+(cy*chunk_size)+(playerState.current_chunk.y*chunk_size)-chunk_size);
+                    (c.width/2) + playerState.position.x + (x*128)+(cx*chunk_size) + (playerState.current_chunk.x*chunk_size) - chunk_size, 
+                    (c.height/2) + playerState.position.y + (y*128)+(cy*chunk_size) + (playerState.current_chunk.y*chunk_size) - chunk_size);
             }}
         }
     }}
+    
+    //loading entity content, ticking at end
+    for(entity of entities){
+        if(DCHK(entity)){
+            drawRotatedCompensatedImage(
+                spriteBank.get(entity.name+(entity.frame==-1?"":entity.frame)),
+                eval(entity.position.x) + eval(playerState.position.x),
+                eval(entity.position.y) + eval(playerState.position.y),
+                entity.axis.x,
+                entity.axis.y,
+                -playerState.facing_angle,
+            )
+        }
+        tickEntity(entity);
+    }
 }
 
 async function main() {
@@ -295,8 +358,11 @@ async function main() {
     drawChunks();
     await updatePlayer();
 
-    Log("Player position: "+playerState.position.x+" "+playerState.position.y);
+    //Log("Player position: "+playerState.position.x+" "+playerState.position.y);
 }
+
+/*ctx.scale(.1, .1);
+ctx.translate(5000, 5000);*/
 
 c.style.width = (prod?window.innerWidth:960)+"px"
 c.style.height = (prod?window.innerHeight:540)+"px";
@@ -304,6 +370,7 @@ if(prod){mainBody.removeChild(document.getElementById("error-box"));}
 if(prod){mainBody.removeChild(document.getElementById("log-box"));}
 
 loadChunks();
+loadEntities();
 
 loadImages().then(function() {
 setInterval(async function() {

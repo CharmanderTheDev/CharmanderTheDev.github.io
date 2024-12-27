@@ -1,3 +1,4 @@
-/tiles/azure_bricks.png
-/tiles/grass.png
-/character_walksheet.png
+/tiles/azure_bricks
+/tiles/grass
+/character_walksheet
+_4/entities/fountain

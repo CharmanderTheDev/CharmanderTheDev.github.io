@@ -1,0 +1,5 @@
+TODO:
+- implement rotation rendering function with custom axis for entity rendering
+- implement abstract entity interaction system (AEIS) (waow awesome acronym dude)
+- implement bottom-last rendering for pseudo3d effect
+- fix fountain axis
