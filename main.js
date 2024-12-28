@@ -1,4 +1,9 @@
-const prod = true;
+const prod = false;
+
+const debug = {
+    show_entity_axis:false,
+
+}
 
 const mainBody = document.getElementById('main-body');
 const c = document.getElementById('canvas');
@@ -20,6 +25,8 @@ const current_chunk_tiles = [
 const entities = [];
 
 const chunk_size = 4096;
+
+var entity_rendering_list = [];
 
 var inputState = {
     up:false,
@@ -109,7 +116,7 @@ function constructEntity(name, info){
         return({
             name: name,
             position: {x: info[0], y: info[1]},
-            axis: {x: 0, y: -50},
+            axis: {x: 0, y: 200},
             frame: 1
         })
     }
@@ -216,14 +223,17 @@ async function updatePlayer() {
     }
 
     //Drawing the player using the walking spritesheet
-    drawRotatedCroppedImage(
-        spriteBank.get("character_walksheet"), 
-        128*playerState.direction, 128*(playerState.walking_frame>1?(playerState.walking_frame===2?0:2):playerState.walking_frame), 
-        128, 128, //
-        (c.width/2), (c.height/2), //position of image
-        128, 128, //width and height of image
-        -playerState.facing_angle //compensate for angle to maintain uprightness
-    );
+    entity_rendering_list.push({
+        function: drawRotatedCroppedImage(
+            spriteBank.get("character_walksheet"), 
+            128*playerState.direction, 128*(playerState.walking_frame>1?(playerState.walking_frame===2?0:2):playerState.walking_frame), 
+            128, 128, //
+            (c.width/2), (c.height/2), //position of image
+            128, 128, //width and height of image
+            -playerState.facing_angle //compensate for angle to maintain uprightness
+        ), 
+        height: c.height/2
+    });
 
     //updating the player chunk if it's different, and loading new chunks
     if(Math.floor(playerState.position.x/chunk_size)!=playerState.current_chunk.x||Math.floor(playerState.position.y/chunk_size)!=playerState.current_chunk.y){
@@ -236,27 +246,33 @@ async function updatePlayer() {
 }
 
 function drawRotatedImage(image, x, y, angle) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    ctx.drawImage(image, -(image.width/2), -(image.height/2));
-    ctx.restore();
+    return function () {
+        ctx.save();
+        ctx.translate(x + dx, y + dy);
+        ctx.rotate(angle);
+        ctx.drawImage(image, -(image.width/2), -(image.height/2));
+        ctx.restore();
+    }
 }
 
 function drawRotatedCompensatedImage(image, x, y, dx, dy, angle) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    ctx.drawImage(image, -(image.width/2) + dx, -(image.height/2) + dy);
-    ctx.restore();
+    return function () {
+        ctx.save();
+        ctx.translate(x + dx, y + dy);
+        ctx.rotate(angle);
+        ctx.drawImage(image, -((image.width/2)+dx), -((image.height/2)+dy));
+        ctx.restore();
+    }
 }
 
 function drawRotatedCroppedImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight, angle) {
-    ctx.save();
-    ctx.translate(dx, dy);
-    ctx.rotate(angle);
-    ctx.drawImage(image, sx, sy, sWidth, sHeight, -dWidth/2, -dHeight/2, dWidth, dHeight);
-    ctx.restore();
+    return function () {
+        ctx.save();
+        ctx.translate(dx, dy);
+        ctx.rotate(angle);
+        ctx.drawImage(image, sx, sy, sWidth, sHeight, -dWidth/2, -dHeight/2, dWidth, dHeight);
+        ctx.restore();
+    }
 }
 
 async function loadChunks() {
@@ -337,27 +353,45 @@ function drawChunks() {
     //loading entity content, ticking at end
     for(entity of entities){
         if(DCHK(entity)){
-            drawRotatedCompensatedImage(
-                spriteBank.get(entity.name+(entity.frame==-1?"":entity.frame)),
-                eval(entity.position.x) + eval(playerState.position.x),
-                eval(entity.position.y) + eval(playerState.position.y),
-                entity.axis.x,
-                entity.axis.y,
-                -playerState.facing_angle,
-            )
+            entity_rendering_list.push({
+                function: drawRotatedCompensatedImage(
+                    spriteBank.get(entity.name+(entity.frame==-1?"":entity.frame)),
+                    eval(entity.position.x) + eval(playerState.position.x),
+                    eval(entity.position.y) + eval(playerState.position.y),
+                    entity.axis.x,
+                    entity.axis.y,
+                    -playerState.facing_angle
+                ), 
+                height: eval(entity.position.y) + eval(entity.axis.y) + eval(playerState.position.y)
+            });
         }
         tickEntity(entity);
     }
 }
 
+function drawCircle(x, y){
+    ctx.beginPath();
+    ctx.arc(x, y, 10, 0, Math.PI*2);
+    ctx.stroke();
+}
+
+async function drawEntities() {
+    entity_rendering_list.sort((a, b) => a.height - b.height);
+    for(entity of entity_rendering_list){entity.function();drawCircle(c.width/2, entity.height)}
+    entity_rendering_list = [];
+}
+
 async function main() {
     tick++;
     if(!prod){LogC();}
+    Log(playerState.facing_angle)
     var max=c.width>=c.height?c.width:c.height;ctx.clearRect(-max*100, -max*100, max*200, max*200) //clears rectangle containing all possible rotated contexts.
 
     drawChunks();
     await updatePlayer();
 
+    await drawEntities();
+    
     //Log("Player position: "+playerState.position.x+" "+playerState.position.y);
 }
 
