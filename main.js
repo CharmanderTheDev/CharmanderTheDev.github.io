@@ -1,4 +1,4 @@
-const prod = false;
+const prod = true;
 
 const debug = {
     show_entity_axis:false,
@@ -377,14 +377,13 @@ function drawCircle(x, y){
 
 async function drawEntities() {
     entity_rendering_list.sort((a, b) => a.height - b.height);
-    for(entity of entity_rendering_list){entity.function();drawCircle(c.width/2, entity.height)}
+    for(entity of entity_rendering_list){entity.function()}
     entity_rendering_list = [];
 }
 
 async function main() {
     tick++;
     if(!prod){LogC();}
-    Log(playerState.facing_angle)
     var max=c.width>=c.height?c.width:c.height;ctx.clearRect(-max*100, -max*100, max*200, max*200) //clears rectangle containing all possible rotated contexts.
 
     drawChunks();
