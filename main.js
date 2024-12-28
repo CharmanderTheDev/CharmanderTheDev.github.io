@@ -1,4 +1,4 @@
-const prod = true;
+const prod = false;
 
 const debug = {
     show_entity_axis:false,
