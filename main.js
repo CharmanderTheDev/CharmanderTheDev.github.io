@@ -1,4 +1,4 @@
-const prod = false;
+const prod = true;
 
 const debug = {
     show_entity_axis:false,
@@ -236,7 +236,7 @@ async function updatePlayer() {
     });
 
     //updating the player chunk if it's different, and loading new chunks
-    if(Math.floor(playerState.position.x/chunk_size)!=playerState.current_chunk.x||Math.floor(playerState.position.y/chunk_size)!=playerState.current_chunk.y){
+    if(-1*Math.floor(playerState.position.x/chunk_size)!=playerState.current_chunk.x||-1*Math.floor(playerState.position.y/chunk_size)!=playerState.current_chunk.y){
 
         playerState.current_chunk.x = -1*Math.floor(playerState.position.x/chunk_size);
         playerState.current_chunk.y = -1*Math.floor(playerState.position.y/chunk_size);
